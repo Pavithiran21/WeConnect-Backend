@@ -3,6 +3,7 @@ import cors from "cors";
 import {Server} from 'socket.io';
 import * as http from 'http';
 import dotenv from "dotenv";
+import User from './Models/UserModel.js';
 import { connectDB } from "./Middlewares/DB.js";
 import userRoute from './Routes/userRoute.js';
 import chatRoute from './Routes/chatRoute.js';
@@ -38,7 +39,20 @@ const io = new Server(server,{
 let users = [];
 
 
+const addUsers =(userId,socketId)=>{
+  const existing = users.find(user =>user.userId === userId);
+  if(!existing){
+    users.push({socketId,userId});
+  }
+}
 
+const removeUsers = (socketId) =>{
+  users.filter((user) => user.socketId !== socketId);
+}
+
+const getUsers = (userId) =>{
+  return users.find((user)=>user.userId === userId);
+}
 
 
 io.on('connection', socket => {
@@ -53,7 +67,33 @@ io.on('connection', socket => {
             io.emit('getUsers', users);
         }
     });
+    socket.on('sendMessage', ({ sender, message, chatId}) => {
+        // Find the sockets of the sender and receiver
+        
+        const senderSocket = users.find((users) => users.id === sender)?.(socket.id);
+        // const receiverSocket = users.find((user) => user.id === receiverId)?.socketId;
+        console.log(senderSocket);
+      
+        if (senderSocket) {
+          io.to(senderSocket).emit('getMessage', {
+            sender,
+            message,
+            chatId,
+          });
 
+          io.to(receiverSocket).emit('getMessage', {
+            sender,
+            message,
+            chatId,
+          });
+        } else {
+          console.log('Sender or receiver not found.');
+        }
+    });
+    socket.on('disconnect', () => {
+        users = users.filter(user => user.socketId !== socket.id);
+        io.emit('getUsers', users);
+    });
 });
 
 
